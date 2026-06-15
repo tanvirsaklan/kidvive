@@ -528,82 +528,562 @@ Visual representation of audio processing:
 graph LR
     incoming.wav --> MFCC --> DTW --> answer.wav --> similarity_score
 ```
-### Database models
-Parent and Robot models:
+# Data Models Documentation
+
+---
+
+## Architecture Overview
+
+The system is organized into three primary domains:
+
+```mermaid
+graph TD
+    subgraph Content["📚 Content Domain"]
+        Package
+        Subject
+        Lesson
+        Question
+        Answer_Variant
+        Answer_Variant_Sample
+    end
+
+    subgraph Users["👨‍👩‍👧 User Domain"]
+        Parent
+        Child
+    end
+
+    subgraph Robots["🤖 Robot Domain"]
+        Robot
+    end
+
+    Users -->|owns| Robots
+    Users -->|subscribes to| Content
+    Robots -->|delivers| Content
+```
+
+---
+
+## Enumerations
+
+All enums derive `Debug`, `Clone`, `Copy`, `PartialEq`, `Eq`, `Serialize`, `Deserialize`, and `sqlx::Type`. They are mapped to PostgreSQL custom types via `#[sqlx(type_name = "...", rename_all = "snake_case")]`.
+
+### ParentRole
+
+Maps to PostgreSQL type: `parent_role`
+
+```mermaid
+graph LR
+    ParentRole --> Father
+    ParentRole --> Mother
+```
+
+| Variant  | DB Value   | Description              |
+|----------|------------|--------------------------|
+| `Father` | `father`   | The parent is the father |
+| `Mother` | `mother`   | The parent is the mother |
+
+---
+
+### ChildGender
+
+Maps to PostgreSQL type: `child_gender`
+
+```mermaid
+graph LR
+    ChildGender --> Boy
+    ChildGender --> Girl
+```
+
+| Variant | DB Value | Description       |
+|---------|----------|-------------------|
+| `Boy`   | `boy`    | Child is male     |
+| `Girl`  | `girl`   | Child is female   |
+
+---
+
+### RobotStatus
+
+Maps to PostgreSQL type: `robot_status`
+
+```mermaid
+graph LR
+    RobotStatus --> Disconnected
+    RobotStatus --> Sleeping
+    RobotStatus --> Teaching
+    RobotStatus --> Playing
+```
+
+| Variant        | DB Value       | Description                              |
+|----------------|----------------|------------------------------------------|
+| `Disconnected` | `disconnected` | Robot has no active connection           |
+| `Sleeping`     | `sleeping`     | Robot is idle / in low-power mode        |
+| `Teaching`     | `teaching`     | Robot is actively delivering a lesson    |
+| `Playing`      | `playing`      | Robot is in free-play mode with a child  |
+
+---
+
+### SessionStatus
+
+Maps to PostgreSQL type: `session_status`
+
+```mermaid
+graph LR
+    SessionStatus --> LessonMode
+    SessionStatus --> QuestionMode
+    SessionStatus --> ListeningMode
+    SessionStatus --> MotionMode
+    SessionStatus --> PlayMode
+    SessionStatus --> ConsoleMode
+    SessionStatus --> RepeatMode
+```
+
+| Variant         | DB Value         | Description                                  |
+|-----------------|------------------|----------------------------------------------|
+| `LessonMode`    | `lesson_mode`    | Delivering lesson content                    |
+| `QuestionMode`  | `question_mode`  | Asking or awaiting a question response       |
+| `ListeningMode` | `listening_mode` | Actively listening to the child's response   |
+| `MotionMode`    | `motion_mode`    | Performing physical/motion actions           |
+| `PlayMode`      | `play_mode`      | Unstructured play interaction                |
+| `ConsoleMode`   | `console_mode`   | Administrative / developer control mode      |
+| `RepeatMode`    | `repeat_mode`    | Repeating previously delivered content       |
+
+---
+
+### LessonStatus
+
+Maps to PostgreSQL type: `lesson_status`
+
+```mermaid
+graph LR
+    LessonStatus --> Untouched
+    LessonStatus --> OnGoing
+    LessonStatus --> Completed
+```
+
+| Variant     | DB Value    | Description                              |
+|-------------|-------------|------------------------------------------|
+| `Untouched` | `untouched` | Lesson has not been started              |
+| `OnGoing`   | `on_going`  | Lesson is currently in progress          |
+| `Completed` | `completed` | Lesson has been finished by the child    |
+
+---
+
+## Content Domain
+
+### Package
+
+A top-level grouping of educational content (e.g., a curriculum bundle).
+
+```mermaid
+classDiagram
+    class Package {
+        +Uuid id
+        +String title
+        +Option~String~ description
+        +Option~String~ banner_url
+    }
+```
+
+| Field         | Type              | Nullable | Description                         |
+|---------------|-------------------|----------|-------------------------------------|
+| `id`          | `Uuid`            | No       | Primary key                         |
+| `title`       | `String`          | No       | Display name of the package         |
+| `description` | `Option<String>`  | Yes      | Optional human-readable description |
+| `banner_url`  | `Option<String>`  | Yes      | Optional URL to a banner image      |
+
+---
+
+### Subject
+
+A subject or topic area (e.g., Mathematics, Language).
+
+```mermaid
+classDiagram
+    class Subject {
+        +Uuid id
+        +String name
+        +Option~String~ description
+        +Option~String~ banner_url
+    }
+```
+
+| Field         | Type             | Nullable | Description                     |
+|---------------|------------------|----------|---------------------------------|
+| `id`          | `Uuid`           | No       | Primary key                     |
+| `name`        | `String`         | No       | Name of the subject             |
+| `description` | `Option<String>` | Yes      | Optional description            |
+| `banner_url`  | `Option<String>` | Yes      | Optional URL to a banner image  |
+
+---
+
+### Lesson
+
+A single lesson unit, belonging to a Package and a Subject.
+
+```mermaid
+classDiagram
+    class Lesson {
+        +Uuid id
+        +Uuid package
+        +Uuid subject
+        +String description
+        +String audio_path
+    }
+    Lesson --> Package : belongs to
+    Lesson --> Subject : categorized under
+```
+
+| Field         | Type     | Nullable | Description                           |
+|---------------|----------|----------|---------------------------------------|
+| `id`          | `Uuid`   | No       | Primary key                           |
+| `package`     | `Uuid`   | No       | FK → `Package.id`                     |
+| `subject`     | `Uuid`   | No       | FK → `Subject.id`                     |
+| `description` | `String` | No       | Textual description of the lesson     |
+| `audio_path`  | `String` | No       | File path to the lesson audio content |
+
+---
+
+### Question
+
+A question attached to a lesson, delivered by the robot after lesson content.
+
+```mermaid
+classDiagram
+    class Question {
+        +Uuid id
+        +Uuid lesson_id
+        +String question_text
+        +String audio_path
+    }
+    Question --> Lesson : belongs to
+```
+
+| Field           | Type     | Nullable | Description                         |
+|-----------------|----------|----------|-------------------------------------|
+| `id`            | `Uuid`   | No       | Primary key                         |
+| `lesson_id`     | `Uuid`   | No       | FK → `Lesson.id`                    |
+| `question_text` | `String` | No       | The text of the question            |
+| `audio_path`    | `String` | No       | File path to the question audio     |
+
+---
+
+### Answer_Variant
+
+A possible correct answer variant for a question.
+
+```mermaid
+classDiagram
+    class Answer_Variant {
+        +Uuid id
+        +Uuid question_id
+        +String answer_text
+    }
+    Answer_Variant --> Question : answers
+```
+
+| Field         | Type     | Nullable | Description                        |
+|---------------|----------|----------|------------------------------------|
+| `id`          | `Uuid`   | No       | Primary key                        |
+| `question_id` | `Uuid`   | No       | FK → `Question.id`                 |
+| `answer_text` | `String` | No       | The text of this answer variant    |
+
+> **Note:** Naming convention uses `Answer_Variant` (with underscore). Consider renaming to `AnswerVariant` to follow Rust's `UpperCamelCase` convention.
+
+---
+
+### Answer_Variant_Sample
+
+Audio and feature vector samples for a given answer variant, used for voice recognition/matching.
+
+```mermaid
+classDiagram
+    class Answer_Variant_Sample {
+        +Uuid id
+        +Uuid answer_variant
+        +Vec~String~ audio_path_list
+        +Vec~String~ featured_vector_list
+    }
+    Answer_Variant_Sample --> Answer_Variant : samples for
+```
+
+| Field                  | Type          | Nullable | Description                                     |
+|------------------------|---------------|----------|-------------------------------------------------|
+| `id`                   | `Uuid`        | No       | Primary key                                     |
+| `answer_variant`       | `Uuid`        | No       | FK → `Answer_Variant.id`                        |
+| `audio_path_list`      | `Vec<String>` | No       | List of audio file paths for this answer        |
+| `featured_vector_list` | `Vec<String>` | No       | List of feature vectors (for voice recognition) |
+
+---
+
+## User Domain
+
+### Parent
+
+A registered parent/guardian who owns a robot and has a child account under them.
+
+```mermaid
+classDiagram
+    class Parent {
+        +Uuid id
+        +String full_name
+        +String full_name_bangla
+        +ParentRole role
+        +Option~String~ email
+        +String phone
+        +String address
+        +Uuid robot_serial_number
+        +bool is_active
+    }
+```
+
+| Field                 | Type             | Nullable | Description                              |
+|-----------------------|------------------|----------|------------------------------------------|
+| `id`                  | `Uuid`           | No       | Primary key                              |
+| `full_name`           | `String`         | No       | Full name in English                     |
+| `full_name_bangla`    | `String`         | No       | Full name in Bangla                      |
+| `role`                | `ParentRole`     | No       | `Father` or `Mother`                     |
+| `email`               | `Option<String>` | Yes      | Optional email address                   |
+| `phone`               | `String`         | No       | Phone number                             |
+| `address`             | `String`         | No       | Physical address                         |
+| `robot_serial_number` | `Uuid`           | No       | FK → `Robot.serial_number`               |
+| `is_active`           | `bool`           | No       | Whether the account is currently active  |
+
+---
+
+### Child
+
+A child profile associated with a parent, with demographic and educational metadata.
+
+```mermaid
+classDiagram
+    class Child {
+        +Uuid id
+        +Uuid parent_id
+        +String full_name
+        +String full_name_bangla
+        +String nickname
+        +String nickname_bangla
+        +ChildGender gender
+        +NaiveDate birth_day
+        +i32 age
+        +Uuid current_package
+    }
+    Child --> Parent : belongs to
+    Child --> Package : enrolled in
+```
+
+| Field               | Type          | Nullable | Description                         |
+|---------------------|---------------|----------|-------------------------------------|
+| `id`                | `Uuid`        | No       | Primary key                         |
+| `parent_id`         | `Uuid`        | No       | FK → `Parent.id`                    |
+| `full_name`         | `String`      | No       | Full name in English                |
+| `full_name_bangla`  | `String`      | No       | Full name in Bangla                 |
+| `nickname`          | `String`      | No       | Nickname in English                 |
+| `nickname_bangla`   | `String`      | No       | Nickname in Bangla                  |
+| `gender`            | `ChildGender` | No       | `Boy` or `Girl`                     |
+| `birth_day`         | `NaiveDate`   | No       | Date of birth                       |
+| `age`               | `i32`         | No       | Current age (in years)              |
+| `current_package`   | `Uuid`        | No       | FK → `Package.id` (active content)  |
+
+---
+
+## Robot Domain
+
+### Robot
+
+A physical robot device assigned to a family, capable of delivering lessons and interacting with children.
+
+```mermaid
+classDiagram
+    class Robot {
+        +Uuid serial_number
+        +Option~Uuid~ parent_id
+        +Option~Uuid~ child_id_list
+        +RobotStatus status
+        +SessionStatus session_mode
+    }
+    Robot --> Parent : owned by
+    Robot --> Child : assigned to
+```
+
+| Field          | Type              | Nullable | Description                                   |
+|----------------|-------------------|----------|-----------------------------------------------|
+| `serial_number`| `Uuid`            | No       | Primary key (device serial)                   |
+| `parent_id`    | `Option<Uuid>`    | Yes      | FK → `Parent.id` (optional owner)             |
+| `child_id_list`| `Option<Uuid>`    | Yes      | FK → `Child.id` (currently a single UUID*)   |
+| `status`       | `RobotStatus`     | No       | Current operational status of the robot       |
+| `session_mode` | `SessionStatus`   | No       | Current session mode of the robot             |
+
+> **⚠️ Note:** `child_id_list` is typed as `Option<Uuid>` but named as a "list". Consider using `Vec<Uuid>` or `Option<Vec<Uuid>>` if multiple children per robot is intended.
+
+---
+
+## Entity Relationship Diagram
+
 ```mermaid
 erDiagram
-    PARENT {
-        int id PK
+    PACKAGE {
+        uuid id PK
+        string title
+        string description
+        string banner_url
+    }
+
+    SUBJECT {
+        uuid id PK
         string name
+        string description
+        string banner_url
+    }
+
+    LESSON {
+        uuid id PK
+        uuid package FK
+        uuid subject FK
+        string description
+        string audio_path
+    }
+
+    QUESTION {
+        uuid id PK
+        uuid lesson_id FK
+        string question_text
+        string audio_path
+    }
+
+    ANSWER_VARIANT {
+        uuid id PK
+        uuid question_id FK
+        string answer_text
+    }
+
+    ANSWER_VARIANT_SAMPLE {
+        uuid id PK
+        uuid answer_variant FK
+        string[] audio_path_list
+        string[] featured_vector_list
+    }
+
+    PARENT {
+        uuid id PK
+        string full_name
+        string full_name_bangla
+        string role
         string email
-        string password
         string phone
         string address
-        string robot_serial_number
+        uuid robot_serial_number FK
+        bool is_active
     }
+
     CHILD {
-        int id PK
-        string name
-        string birth_day
-        string age
+        uuid id PK
+        uuid parent_id FK
+        string full_name
+        string full_name_bangla
+        string nickname
+        string nickname_bangla
         string gender
-        string parent_id FK
+        date birth_day
+        int age
+        uuid current_package FK
     }
+
     ROBOT {
-        int serial_number PK
-        string parent_id FK
-        string active_child_id FK
+        uuid serial_number PK
+        uuid parent_id FK
+        uuid child_id_list FK
         string status
         string session_mode
     }
+
+    PACKAGE ||--o{ LESSON : "contains"
+    SUBJECT ||--o{ LESSON : "categorizes"
+    LESSON ||--o{ QUESTION : "has"
+    QUESTION ||--o{ ANSWER_VARIANT : "has"
+    ANSWER_VARIANT ||--o{ ANSWER_VARIANT_SAMPLE : "has samples"
+    PARENT ||--o{ CHILD : "has"
+    PARENT ||--|| ROBOT : "owns"
+    CHILD }o--|| PACKAGE : "enrolled in"
+    ROBOT }o--|| PARENT : "assigned to"
+    ROBOT }o--o| CHILD : "interacts with"
 ```
-Lessons --> Question --> Answer model:
+
+---
+
+## State Diagrams
+
+### Robot Lifecycle
+
 ```mermaid
-erDiagram
-    LESSON {
-        int id PK
-        string subject
-        string routine_date
-        string audio_path
-    }
-    QUESTION {
-        int id PK
-        string lesson_id FK
-        string audio_path
-    }
-    ANSWER_VARIANT {
-        int id PK
-        string question_id FK
-        string answer_text
-    }
-    ANSWER_VARIANT_SAMPLE {
-        int id PK
-        string answer_variant_id FK
-        string audio_path_list
-        string featured_vector_list
-    }
+stateDiagram-v2
+    [*] --> Disconnected : Device powered off / unlinked
+
+    Disconnected --> Sleeping : Connected & paired
+    Sleeping --> Disconnected : Unpaired / powered off
+
+    Sleeping --> Teaching : Session started (lesson)
+    Sleeping --> Playing : Session started (play)
+
+    Teaching --> Sleeping : Session ended
+    Playing --> Sleeping : Session ended
+
+    Teaching --> Playing : Mode switched
+    Playing --> Teaching : Mode switched
 ```
-Child's lesson completion model:
+
+---
+
+### Lesson Progress
+
 ```mermaid
-erDiagram
-    CHILD_LESSON_COMPLETION {
-        int id PK
-        int child_id FK
-        int lesson_id FK
-        string status
-        string completion_date
-    }
-    CHILD_DAILY_SCORE {
-        int id PK
-        int child_id FK
-        string date
-        float score
-    }
-    CHILD_LEVEL_PROGRESS {
-        int id PK
-        int child_id FK
-        int level
-        float progress
-        string completion_date
-    }
+stateDiagram-v2
+    [*] --> Untouched : Lesson assigned to child
+
+    Untouched --> OnGoing : Child begins lesson
+    OnGoing --> Completed : Child finishes lesson
+    OnGoing --> Untouched : Session reset
+
+    Completed --> [*]
 ```
+
+---
+
+### Robot Session Flow
+
+```mermaid
+stateDiagram-v2
+    [*] --> LessonMode : Lesson begins
+
+    LessonMode --> QuestionMode : Lesson content ends
+    QuestionMode --> ListeningMode : Question delivered
+    ListeningMode --> QuestionMode : No valid response (retry)
+    ListeningMode --> LessonMode : Answer accepted
+
+    LessonMode --> RepeatMode : Repeat requested
+    RepeatMode --> LessonMode : Replay complete
+
+    LessonMode --> MotionMode : Motion cue triggered
+    MotionMode --> LessonMode : Motion complete
+
+    LessonMode --> PlayMode : Play mode activated
+    PlayMode --> LessonMode : Return to lesson
+
+    LessonMode --> ConsoleMode : Admin override
+    ConsoleMode --> LessonMode : Console closed
+```
+
+---
+
+## Dependencies
+
+| Crate       | Usage                                      |
+|-------------|--------------------------------------------|
+| `chrono`    | `DateTime<Utc>`, `NaiveDate` — date/time types |
+| `serde`     | `Serialize`, `Deserialize` — JSON (de)serialization |
+| `sqlx`      | `FromRow`, `sqlx::Type` — PostgreSQL ORM mapping |
+| `uuid`      | `Uuid` — universally unique identifiers     |
+
+---
+
+*Documentation generated from `src/models.rs` — last updated June 2026.*
