@@ -100,6 +100,9 @@ pub struct Parent {
     pub full_name: String,
     pub full_name_bangla: String,
     pub role: ParentRole,
+    pub secondarry_full_name: Option<String>,
+    pub secondary_full_name_bangla: Option<String>,
+    pub secondary_role: Option<ParentRole>,
     pub email: Option<String>,
     pub phone: String,
     pub address: String,
@@ -118,6 +121,7 @@ pub struct Child {
     pub gender: ChildGender,
     pub birth_day: NaiveDate,
     pub age: i32,
+    pub child_image_url: Option<String>,
     pub current_package: Uuid, // Foreign Key
 }
 

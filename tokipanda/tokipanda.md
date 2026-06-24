@@ -12,7 +12,7 @@ The robot is responsible for:
 * Recording child responses
 * Capturing camera images
 * Displaying emoji feedback
-* Moving according to server commands
+* Moving according to server commands or remote controlled by kids
 * Maintaining communication with the cloud platform
 
 The robot is not expected to perform local AI processing.
@@ -36,35 +36,33 @@ The system must support:
 
 ## Typical Learning Session
 
+### Initial Setup
+
+1. Battery is inserted.
+2. Robot powers on automatically.
+3. Searches for bluetooth connection from parents mobile app.
+4. Fetches wifi credentials from bluetooth.
+5. Authenticates. Repeats 3 and 4 if failed.
+6. Establishes secured protocols with the server
+
 ### Startup
 
 1. Battery is inserted.
 2. Robot powers on automatically.
 3. ESP32-S3 connects to configured Wi-Fi.
-4. Robot authenticates with backend server.
-5. Server assigns active lesson.
-
-### Lesson Playback
-
-1. Server sends greeting audio.
-2. Robot plays greeting audio.
-3. Server sends lesson audio.
-4. Robot plays lesson audio.
-
-### Question and Answer
-
-1. Server sends question audio.
-2. Robot plays question audio.
-3. Speaker is muted.
-4. Microphone records child response.
-5. Audio is uploaded to server.
-6. Server evaluates response.
-7. Server returns:
-
-   * Correct answer feedback
-   * Wrong answer feedback
-   * Next question
-   * Repeat request
+4. Greets the kid, pauses, listen to the kid for 3 seconds. If kid speaks, esp sends the captured audio data to server for mode evaluation.
+5. If esp detects that the kid is not speaking in that 3 seconds, then robot asks to select the mode using remote. Options for modes are (Learning, Fun, AI). Kid has to press 1/2/3 labelled button on the remote.
+6. On remote press, robot sends request to server with modes. Server responses with pre-scheduled contents and stream content's audio.
+7. In lesson mode, When robot asks a question, the answers are two types. When the server responses answer type while streaming question's audio, esp decides what to do after playing the questions. If the answer type is audio, it listens to the kid for 5 seconds. If the answer type is mcq, it listens to bluetooth for 5 seconds.
+8. Audio answers are streameed to the server, mcq answers are bluetooth signal, so esp sends value (1/2/3) to the server. Server evaluates the result and sends response.
+9. While in fun mode, esp listens to what child wants to hear. Child can reply (Rhymes, Songs, Stories). Server evalutaes requests and send audio stream to the robot.
+10. While in AI mode, esp captures what kid says, when kid stops, sends data to server, server responses an audio stream. This session continues till server responses a mode change or limit crossed. 
+11. Server responses are overridden when kids use remote to move the robot. That time robot just keeps sending video data to server and moves as the the remote sends signals over bluetooth.
+12. Those three modes interrupts when camera feed analysis on server detects that kid has moved away from the robot.
+13. After lesson ending or session ending, esp turns off camera feed and goes to sleep mode.
+14. While in sleep mode, it wakes up in every 5 mins, connects to wifi and check if there is any instructions or not.
+15. When the battery runs out, robot plays a warning audio 30 mins before it shuts down completely.
+16. When the battery is charged again, robot starts routine work as if it just woke up from sleep mode.
 
 ### Emoji Feedback
 
@@ -532,7 +530,7 @@ graph LR
 
 ---
 
-## Architecture Overview
+## Architecture verview
 
 The system is organized into three primary domains:
 
