@@ -63,6 +63,18 @@ The system must support:
 14. While in sleep mode, it wakes up in every 5 mins, connects to wifi and check if there is any instructions or not.
 15. When the battery runs out, robot plays a warning audio 30 mins before it shuts down completely.
 16. When the battery is charged again, robot starts routine work as if it just woke up from sleep mode.
+17. Display shows battery percentage and timer.
+
+### Parents Mobile App
+
+#### Splash scrreen
+Everytime the app is opened the splash screen appears. It contains a logo+slogan on a purple screen.
+
+#### Themes
+There are only one theme. No light/dark theme toggling. Color codes in the color palette are `#8D1D96`, `#482382`, `#0447A8`, `#E11487`. Light color codes are `#FDEAFF`, `#F5EFFF`, `E3EEFF`, `#FFBAD1`.
+
+#### First Onboarding
+Parents need to register 
 
 ### Emoji Feedback
 
