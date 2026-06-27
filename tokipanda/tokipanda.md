@@ -65,6 +65,8 @@ The system must support:
 16. When the battery is charged again, robot starts routine work as if it just woke up from sleep mode.
 17. Display shows battery percentage and timer.
 
+Sample - Change
+
 ### Parents Mobile App
 
 #### Splash scrreen
