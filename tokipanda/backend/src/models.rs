@@ -67,6 +67,7 @@ pub struct Lesson {
     pub id: Uuid,
     pub package: Uuid, // Foreign Key
     pub subject: Uuid, // Foreign Key
+    pub day: i64,
     pub description: String,
     pub audio_path: String,
 }
@@ -87,14 +88,6 @@ pub struct Answer_Variant {
 }
 
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
-pub struct Answer_Variant_Sample {
-    pub id: Uuid,
-    pub answer_variant: Uuid, // Foreign Key
-    pub audio_path_list: Vec<String>,
-    pub featured_vector_list: Vec<String>,
-}
-
-#[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
 pub struct Parent {
     pub id: Uuid,
     pub full_name: String,
@@ -106,14 +99,15 @@ pub struct Parent {
     pub email: Option<String>,
     pub phone: String,
     pub address: String,
-    pub robot_serial_number: Uuid,
+    pub robots: Option<Vec<Uuid>>,
+    pub children: Vec<Uuid>,
     pub is_active: bool,
 }
 
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
 pub struct Child {
     pub id: Uuid,
-    pub parent_id: Uuid, // Foreign Key - Parent's ID
+    pub parent_id: Vec<Uuid>, // Foreign Key - Parent's ID
     pub full_name: String,
     pub full_name_bangla: String,
     pub nickname: String,
@@ -126,10 +120,20 @@ pub struct Child {
 }
 
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
+pub struct ChildStatistics {
+    pub id: Uuid, // FK Child
+    pub total_lesson_time: i64, // counts in minute
+    pub total_days_passed: i64, // counts days after first robot session
+    pub total_lesson_completed: i64,
+    pub accuracy_rate: f64,
+    pub best_subject_progress: String,
+}
+
+#[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
 pub struct Robot {
     pub serial_number: Uuid,
-    pub parent_id: Option<Uuid>, // Foreign Key
-    pub child_id_list: Option<Uuid>, // Foreign Key
+    pub parent_id: Option<Vec<Uuid>>, // Foreign Key
+    pub child_id_list: Option<Vec<Uuid>>, // Foreign Key
     pub status: RobotStatus,
     pub session_mode: SessionStatus,
 }
